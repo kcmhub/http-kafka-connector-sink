@@ -1,0 +1,27 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0">
+  <id>plugin</id>
+  <formats>
+    <format>dir</format>
+    <format>zip</format>
+  </formats>
+  <includeBaseDirectory>true</includeBaseDirectory>
+  <baseDirectory>etech-kafka-connect-http-${project.version}</baseDirectory>
+  <fileSets>
+    <fileSet>
+      <directory>${project.build.directory}</directory>
+      <outputDirectory>lib</outputDirectory>
+      <includes>
+        <include>${project.artifactId}-${project.version}.jar</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>${project.basedir}</directory>
+      <outputDirectory>./</outputDirectory>
+      <includes>
+        <include>README.md</include>
+        <include>manifest.json</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+</assembly>
+
