@@ -168,3 +168,138 @@ dotted-path syntax just walks the `Map` instead of a `Struct`.
 }
 ```
 
+---
+
+## 7. ACK-compatible response reporting
+
+Use this when downstream applications consume ACK topics to decide whether to
+replay, reject or investigate a record. The reported value remains the rendered
+HTTP request body; Kafka input metadata plus the HTTP response are carried in
+headers.
+
+```json
+{
+  "connector.class": "fr.etech.kafka.connect.http.EtechHttpSinkConnector",
+  "tasks.max": "1",
+  "topics": "orders.created",
+
+  "connect.http.endpoint": "https://api.example.com/v1/orders",
+  "connect.http.method": "POST",
+  "connect.http.request.content": "{{value.payload}}",
+  "connect.http.request.headers": "Content-Type:application/json,Idempotency-Key:{{header.Idempotency-Key}}",
+
+  "connect.reporting.success.config.enabled": "true",
+  "connect.reporting.success.config.bootstrap.servers": "kafka:29092",
+  "connect.reporting.success.config.topic": "orders.created.http-success",
+  "connect.reporting.error.config.enabled": "true",
+  "connect.reporting.error.config.bootstrap.servers": "kafka:29092",
+  "connect.reporting.error.config.topic": "orders.created.http-error",
+
+  "connect.reporting.value.mode": "request_body",
+  "connect.reporting.include.input.metadata": "true",
+  "connect.reporting.include.input.key": "true",
+  "connect.reporting.include.input.payload": "true",
+  "connect.reporting.include.response.content": "true"
+}
+```
+
+Headers include `input_topic`, `input_partition`, `input_offset`,
+`input_timestamp`, `input_key`, `input_payload`, `response_content` and
+`response_status_code`. Additional HTTP metadata uses underscore headers such as
+`http_status_code`, `http_method` and `http_url`; no `http.*` or `input.*`
+dotted aliases are emitted.
+
+---
+
+## 8. Investigation envelope with redaction
+
+Use this temporarily or on low-risk topics when you need to correlate source
+record, rendered request and HTTP response in one report value.
+
+```json
+{
+  "connector.class": "fr.etech.kafka.connect.http.EtechHttpSinkConnector",
+  "tasks.max": "1",
+  "topics": "orders.created",
+
+  "connect.http.endpoint": "https://api.example.com/v1/orders",
+  "connect.http.method": "POST",
+  "connect.http.request.content": "{{value.payload}}",
+  "connect.http.request.headers": "Content-Type:application/json,Authorization:{{header.Authorization}}",
+
+  "connect.reporting.success.config.enabled": "true",
+  "connect.reporting.success.config.bootstrap.servers": "kafka:29092",
+  "connect.reporting.success.config.topic": "orders.created.http-success",
+
+  "connect.reporting.value.mode": "envelope",
+  "connect.reporting.include.input.metadata": "true",
+  "connect.reporting.include.input.key": "true",
+  "connect.reporting.include.input.payload": "true",
+  "connect.reporting.include.request.body": "true",
+  "connect.reporting.include.request.headers": "false",
+  "connect.reporting.include.response.content": "true",
+  "connect.reporting.redaction.enabled": "true",
+  "connect.reporting.redaction.fields": "iban,taxNumber,accountNumber,Authorization,client_secret",
+  "connect.reporting.max.payload.bytes": "20000",
+  "connect.reporting.max.response.bytes": "20000"
+}
+```
+
+---
+
+## 9. SMT: ExtractField
+
+SMTs run before the connector receives the record. In this example the task sees
+only the extracted `payload` field, and reporting input payload reflects that
+post-SMT value.
+
+```json
+{
+  "connector.class": "fr.etech.kafka.connect.http.EtechHttpSinkConnector",
+  "tasks.max": "1",
+  "topics": "orders.created",
+
+  "transforms": "extractPayload",
+  "transforms.extractPayload.type": "org.apache.kafka.connect.transforms.ExtractField$Value",
+  "transforms.extractPayload.field": "payload",
+
+  "connect.http.endpoint": "https://api.example.com/v1/orders",
+  "connect.http.method": "POST",
+  "connect.http.request.content": "{{value}}"
+}
+```
+
+---
+
+## 10. SMT: ReplaceField, HeaderFrom, HoistField, RegexRouter
+
+```json
+{
+  "connector.class": "fr.etech.kafka.connect.http.EtechHttpSinkConnector",
+  "tasks.max": "1",
+  "topics": "orders.created",
+
+  "transforms": "dropSensitive,copyIdToHeader,wrap,route",
+
+  "transforms.dropSensitive.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+  "transforms.dropSensitive.exclude": "iban,taxNumber",
+
+  "transforms.copyIdToHeader.type": "org.apache.kafka.connect.transforms.HeaderFrom$Value",
+  "transforms.copyIdToHeader.fields": "correlationId",
+  "transforms.copyIdToHeader.headers": "X-Correlation-Id",
+  "transforms.copyIdToHeader.operation": "copy",
+
+  "transforms.wrap.type": "org.apache.kafka.connect.transforms.HoistField$Value",
+  "transforms.wrap.field": "payload",
+
+  "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+  "transforms.route.regex": "orders\\.(.*)",
+  "transforms.route.replacement": "http.orders.$1",
+
+  "connect.http.endpoint": "https://api.example.com/v1/orders",
+  "connect.http.method": "POST",
+  "connect.http.request.content": "{{value.payload}}",
+  "connect.http.request.headers": "X-Correlation-Id:{{header.X-Correlation-Id}}"
+}
+```
+

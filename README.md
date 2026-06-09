@@ -29,7 +29,7 @@ and a Mustache-style templating language for the URL, body and headers.
 | **Templating**       | `{{key}}` · `{{value}}` · `{{value.<dotted.path>}}` · `{{header.<name>}}` · `{{topic}} / {{partition}} / {{offset}} / {{timestamp}}` |
 | **Authentication**   | `none` · `basic` · `oauth2` (client_credentials, cached + auto-refresh on 401 / expiry) |
 | **Retries**          | Exponential backoff on configurable status codes **and** transport `IOException` |
-| **Response reporting** | 2xx → success topic · non-2xx → error topic, HTTP metadata exposed as record headers |
+| **Response reporting** | 2xx → success topic · non-2xx → error topic, request-body ACK value by default, response headers, optional envelope, Kafka input metadata, request/response capture and redaction |
 | **Dead-letter queue** | Delegated to the Connect runtime (`errors.deadletterqueue.*`) |
 | **Secrets**          | Full `${file:…}` `ConfigProvider` support (works with `FileConfigProvider`, `DirectoryConfigProvider`, KV-vault providers) |
 | **Footprint**        | ~30 KB jar · no extra runtime deps · loaded under standard `plugin.path` |
@@ -44,12 +44,12 @@ and a Mustache-style templating language for the URL, body and headers.
 
 Produces:
 
-- `target/etech-kafka-connect-http-1.0.0.jar` — the connector
-- `target/etech-kafka-connect-http-1.0.0.zip` — Confluent-Hub-style component
+- `target/etech-kafka-connect-http-1.1.0.jar` — the connector
+- `target/etech-kafka-connect-http-1.1.0.zip` — Confluent-Hub-style component
   with the layout
   ```
-  etech-kafka-connect-http-1.0.0/
-    lib/etech-kafka-connect-http-1.0.0.jar
+  etech-kafka-connect-http-1.1.0/
+    lib/etech-kafka-connect-http-1.1.0.jar
     manifest.json
     README.md
   ```
@@ -58,9 +58,9 @@ Produces:
 
 | Target | Action |
 |---|---|
-| **Confluent Platform / cp-kafka-connect** | `unzip etech-kafka-connect-http-1.0.0.zip -d /usr/share/confluent-hub-components/` and restart the worker. |
+| **Confluent Platform / cp-kafka-connect** | `unzip etech-kafka-connect-http-1.1.0.zip -d /usr/share/confluent-hub-components/` and restart the worker. |
 | **Apache Kafka Connect** | Drop the jar under any directory listed in `plugin.path`. |
-| **Docker compose** | Bind-mount the jar at `/opt/connectors/etech-kafka-connect-http/lib/etech-kafka-connect-http-1.0.0.jar` and add that directory to `CONNECT_PLUGIN_PATH`. |
+| **Docker compose** | Bind-mount the jar at `/opt/connectors/etech-kafka-connect-http/lib/etech-kafka-connect-http-1.1.0.jar` and add that directory to `CONNECT_PLUGIN_PATH`. |
 
 ### Register a connector
 
@@ -89,6 +89,49 @@ A minimal connector:
 
 See [`docs/RECIPES.md`](docs/RECIPES.md) for more shapes (DELETE, OAuth2, Basic,
 schemaless JSON, …).
+
+### ACK-compatible reporting
+
+By default, response reporting keeps the reported record value equal to the
+rendered HTTP request body. The HTTP response body and status are carried in
+headers, so downstream BPP-style ACK consumers can correlate the payload sent to
+the endpoint with the endpoint acknowledgement.
+
+```json
+{
+  "connect.reporting.value.mode": "request_body",
+  "connect.reporting.include.input.metadata": "true",
+  "connect.reporting.include.input.key": "true",
+  "connect.reporting.include.input.payload": "true",
+  "connect.reporting.include.response.content": "true"
+}
+```
+
+Default ACK headers include `input_topic`, `input_partition`, `input_offset`,
+`input_timestamp`, `input_key`, `input_payload`, `response_content` and
+`response_status_code`. Optional HTTP metadata uses underscore names such as
+`http_status_code`, `http_method` and `http_url`; the connector does not emit
+old `http.*` / `input.*` dotted aliases.
+
+For incident analysis, use `envelope` mode and opt in to input/request capture
+with redaction:
+
+```json
+{
+  "connect.reporting.value.mode": "envelope",
+  "connect.reporting.include.input.payload": "true",
+  "connect.reporting.include.request.body": "true",
+  "connect.reporting.include.response.content": "true",
+  "connect.reporting.redaction.enabled": "true",
+  "connect.reporting.redaction.fields": "iban,taxNumber,accountNumber,Authorization,client_secret"
+}
+```
+
+### Single Message Transforms
+
+The connector supports standard Kafka Connect SMTs. SMTs are executed by the
+Kafka Connect runtime before `EtechHttpSinkTask.put(records)`, so templating and
+reporting see the transformed record that is actually used for the HTTP call.
 
 ## Documentation
 

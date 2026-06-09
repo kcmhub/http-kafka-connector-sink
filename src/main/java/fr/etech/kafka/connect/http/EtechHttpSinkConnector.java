@@ -19,7 +19,17 @@ public final class EtechHttpSinkConnector extends SinkConnector {
 
   private Map<String, String> props;
 
-  @Override public String version() { return "1.0.0"; }
+  @Override public String version() {
+    return connectorVersion();
+  }
+
+  static String connectorVersion() {
+    Package pkg = EtechHttpSinkConnector.class.getPackage();
+    String implementationVersion = pkg == null ? null : pkg.getImplementationVersion();
+    return implementationVersion == null || implementationVersion.isBlank()
+        ? "1.1.0"
+        : implementationVersion;
+  }
 
   @Override public void start(Map<String, String> props) {
     // Fail fast on invalid config.

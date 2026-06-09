@@ -33,10 +33,10 @@
      │   └────────────┘  └────────────┘  └────────┘ │         └─────────────────┘
      └──────────────────────────────────────────────┘
                             │
-                            ▼ (success | error)
+                            ▼ (success | error, after HTTP response)
                   ┌───────────────────────────┐
                   │  KafkaResponseReporter    │  fire-and-forget producer
-                  │  topic + http headers     │
+                  │ request_body / response_only / envelope │
                   └───────────────────────────┘
 ```
 
@@ -108,7 +108,7 @@ configured `errors.deadletterqueue.topic.name` will receive them.
 |---|---|
 | `start(props)` | Build immutable config, instantiate `HttpClient`, `Authenticator`, retry policy and (optionally) the two reporters. |
 | `put(records)` | Each record is processed sequentially on the task thread (one in-flight HTTP request at a time per task). Parallelism comes from `tasks.max`. |
-| `flush(offsets)` | No-op — every send is synchronous, so when `put` returns the corresponding records are durably delivered (success-reported, error-reported, or DLQ'd by Connect). |
+| `flush(offsets)` | No-op — every HTTP send is synchronous. The optional reporter is best-effort and should be treated as observability unless configured consumers parse its ACK value. |
 | `stop()` | Closes both reporter producers and the authenticator. The HTTP client follows the JVM's normal GC. |
 
 ## Performance notes
@@ -120,4 +120,18 @@ configured `errors.deadletterqueue.topic.name` will receive them.
   task.
 - Reporter producers use `linger.ms=5` and `acks=1` — they are intentionally
   cheap to keep the hot path fast and **must not** block on a slow broker.
+
+## Offset behavior
+
+The connector does not override `SinkTask.preCommit(...)` and does not create
+its own `OffsetAndMetadata`. Offset commits are left to the Kafka Connect
+runtime. After a record at offset `N` is processed and `put(...)` returns
+successfully, the runtime commits the next offset (`N + 1`) according to the
+worker's normal flush policy.
+
+## SMT behavior
+
+Single Message Transforms are applied by the Kafka Connect runtime before this
+task receives records. Templating, HTTP request construction and reporting all
+operate on the post-SMT record seen by `put(records)`.
 

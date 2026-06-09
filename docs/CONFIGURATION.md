@@ -64,6 +64,12 @@ OAuth2 specifics:
 Both reporters can be enabled independently. They are **fire-and-forget**: any
 send failure is logged at `WARN` but never propagates to the task.
 
+The default value mode is compatible with the existing HTTP ACK topic shape:
+the reported record value is the rendered HTTP request body, while the HTTP
+response body and status are exposed in headers. This lets downstream consumers
+correlate the exact payload sent to the HTTP endpoint with the endpoint
+acknowledgement.
+
 | Key (success / error) | Type | Default | Description |
 |---|---|---|---|
 | `connect.reporting.success.config.enabled` / `…error.config.enabled` | bool | `false` | Master switch per reporter. |
@@ -73,17 +79,77 @@ send failure is logged at `WARN` but never propagates to the task.
 | `…sasl.mechanism` | string | `""` | Standard Kafka client property. |
 | `…sasl.jaas.config` | password | `""` | Standard Kafka client property. |
 
+### Report content
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `connect.reporting.value.mode` | string | `request_body` | `request_body` keeps the value as the rendered HTTP request body. `response_only` uses the raw response body. `envelope` emits a JSON document containing selected input/request/response sections. |
+| `connect.reporting.include.input.metadata` | bool | `true` | Include source topic, partition, offset and timestamp in headers and envelope. |
+| `connect.reporting.include.input.key` | bool | `true` | Include the post-SMT source key as `input_key`. The header is present with a null value when the input key is null. |
+| `connect.reporting.include.input.payload` | bool | `true` | Include the post-SMT source value as `input_payload`. |
+| `connect.reporting.include.transformed.input.payload` | bool | `true` | Documents/enforces that reported input payload is the transformed record seen by the task. |
+| `connect.reporting.include.request.body` | bool | `false` | Include the rendered HTTP request body. |
+| `connect.reporting.include.request.headers` | bool | `false` | Include rendered HTTP request headers in `envelope` mode. |
+| `connect.reporting.include.response.content` | bool | `true` | Include the response body as `response_content` and in `envelope` mode. |
+| `connect.reporting.include.http.metadata` | bool | `true` | Include `http_status_code`, `http_method` and `http_url` headers. |
+| `connect.reporting.redaction.enabled` | bool | `false` | Mask configured sensitive fields in reported text. |
+| `connect.reporting.redaction.fields` | list | `iban,taxNumber,accountNumber,Authorization,client_secret` | Field/header names to mask when redaction is enabled. |
+| `connect.reporting.max.payload.bytes` | int | `-1` | Max reported input/request payload characters; `-1` disables truncation. |
+| `connect.reporting.max.response.bytes` | int | `-1` | Max reported response characters; `-1` disables truncation. |
+
 Each reported record carries the following headers:
 
 | Header | Value |
 |---|---|
-| `http.status.code` | e.g. `201` |
-| `http.method` | the HTTP method actually sent |
-| `http.url` | the fully-rendered URL |
-| `input.topic` | the source topic |
-| `input.partition` | the source partition |
-| `input.offset` | the source offset |
+| `input_topic` | the source topic |
+| `input_partition` | the source partition |
+| `input_offset` | the source offset |
+| `input_timestamp` | the source timestamp, when available |
+| `input_key` | the source key, present with null value when the source key is null |
+| `input_payload` | the source value, after Kafka Connect SMTs |
+| `response_content` | the HTTP response body |
+| `response_status_code` | the HTTP status code |
+| `response_status` / `status_code` | compatibility aliases for the HTTP status code |
+| `http_status_code` | e.g. `201`, when `include.http.metadata=true` |
+| `http_method` | the HTTP method actually sent, when `include.http.metadata=true` |
+| `http_url` | the fully-rendered URL, when `include.http.metadata=true` |
+| `request_body` | optional, when `include.request.body=true` |
 
-Key passthrough: the reported record uses the source record's key (UTF-8 bytes).
-Value: the HTTP response body (raw bytes).
+Key passthrough: the reported record uses the source record's key (UTF-8 bytes);
+a null source key remains a null reported key.
+In the default `request_body` mode, the value is the rendered HTTP request body
+(raw bytes). In `response_only` mode, the value is the HTTP response body (raw
+bytes).
+
+When `connect.reporting.value.mode=envelope`, the value is a JSON document:
+
+```json
+{
+  "input": {
+    "input_topic": "orders",
+    "input_partition": 2,
+    "input_offset": 53,
+    "input_timestamp": 1710000000000,
+    "input_key": "key",
+    "input_payload": "{...}"
+  },
+  "request": {
+    "method": "POST",
+    "url": "https://api.example.com/v1/orders",
+    "body": "{...}"
+  },
+  "response": {
+    "response_status": 200,
+    "response_status_code": 200,
+    "status_code": 200,
+    "response_content": "{...}"
+  }
+}
+```
+
+## Single Message Transforms
+
+Standard Kafka Connect SMTs are supported. SMTs run in the Connect runtime
+before the sink task receives records, so the connector templates and reporting
+operate on the post-SMT record.
 
