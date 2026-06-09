@@ -6,7 +6,6 @@ import java.util.Properties;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -20,9 +19,8 @@ import org.slf4j.LoggerFactory;
  * <p>Layout of each report record:
  * <ul>
  *   <li>key   — the original record key (passthrough, as bytes)</li>
- *   <li>value — the HTTP response body (bytes)</li>
- *   <li>headers — {@code http.status.code}, {@code http.method},
- *       {@code http.url}, plus original record's topic/partition/offset</li>
+ *   <li>value — HTTP response body or a JSON envelope, depending on config</li>
+ *   <li>headers — HTTP metadata plus optional input/request/response data</li>
  * </ul>
  *
  * <p>{@link #publish(SinkRecord, String, String, int, String)} is fire-and-forget:
@@ -35,8 +33,10 @@ public final class KafkaResponseReporter implements AutoCloseable {
 
   private final KafkaProducer<byte[], byte[]> producer;
   private final String topic;
+  private final ReportRecordBuilder reportRecordBuilder;
 
-  public KafkaResponseReporter(Map<String, Object> reporterProps, String topic, String clientId) {
+  public KafkaResponseReporter(Map<String, Object> reporterProps, String topic, String clientId,
+                               ReportingOptions options) {
     Properties p = new Properties();
     p.putAll(reporterProps);
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getName());
@@ -49,19 +49,14 @@ public final class KafkaResponseReporter implements AutoCloseable {
     @SuppressWarnings("unused") Class<?> _s = StringSerializer.class;
     this.producer = new KafkaProducer<>(p);
     this.topic = topic;
+    this.reportRecordBuilder = new ReportRecordBuilder(options);
   }
 
-  public void publish(SinkRecord original, String method, String url, int status, String responseBody) {
+  public void publish(SinkRecord original, String method, String url, String requestBody,
+                      Map<String, String> requestHeaders, int status, String responseBody) {
     try {
-      byte[] key = original.key() == null ? null : original.key().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-      byte[] body = responseBody == null ? new byte[0] : responseBody.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-      ProducerRecord<byte[], byte[]> rec = new ProducerRecord<>(topic, null, key, body);
-      rec.headers().add(new RecordHeader("http.status.code", Integer.toString(status).getBytes()));
-      rec.headers().add(new RecordHeader("http.method", method.getBytes()));
-      rec.headers().add(new RecordHeader("http.url", url.getBytes()));
-      rec.headers().add(new RecordHeader("input.topic", original.topic().getBytes()));
-      rec.headers().add(new RecordHeader("input.partition", Integer.toString(original.kafkaPartition()).getBytes()));
-      rec.headers().add(new RecordHeader("input.offset", Long.toString(original.kafkaOffset()).getBytes()));
+      ProducerRecord<byte[], byte[]> rec = reportRecordBuilder.build(
+          topic, original, method, url, requestBody, requestHeaders, status, responseBody);
       producer.send(rec, (md, ex) -> {
         if (ex != null) LOG.warn("Failed to publish HTTP report to {}: {}", topic, ex.getMessage());
       });

@@ -58,9 +58,25 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
   public static final String REP_ERROR_SASL_MECH       = "connect.reporting.error.config.sasl.mechanism";
   public static final String REP_ERROR_SASL_JAAS       = "connect.reporting.error.config.sasl.jaas.config";
 
+  public static final String REP_VALUE_MODE            = "connect.reporting.value.mode";
+  public static final String REP_INCLUDE_INPUT_METADATA = "connect.reporting.include.input.metadata";
+  public static final String REP_INCLUDE_INPUT_KEY     = "connect.reporting.include.input.key";
+  public static final String REP_INCLUDE_INPUT_PAYLOAD = "connect.reporting.include.input.payload";
+  public static final String REP_INCLUDE_TRANSFORMED_INPUT_PAYLOAD =
+      "connect.reporting.include.transformed.input.payload";
+  public static final String REP_INCLUDE_REQUEST_BODY  = "connect.reporting.include.request.body";
+  public static final String REP_INCLUDE_REQUEST_HEADERS = "connect.reporting.include.request.headers";
+  public static final String REP_INCLUDE_RESPONSE_CONTENT = "connect.reporting.include.response.content";
+  public static final String REP_INCLUDE_HTTP_METADATA = "connect.reporting.include.http.metadata";
+  public static final String REP_REDACTION_ENABLED     = "connect.reporting.redaction.enabled";
+  public static final String REP_REDACTION_FIELDS      = "connect.reporting.redaction.fields";
+  public static final String REP_MAX_PAYLOAD_BYTES     = "connect.reporting.max.payload.bytes";
+  public static final String REP_MAX_RESPONSE_BYTES    = "connect.reporting.max.response.bytes";
+
   // --- enums -----------------------------------------------------------------
   public enum AuthType { NONE, BASIC, OAUTH2 }
   public enum RetryMode { NONE, EXPONENTIAL }
+  public enum ReportingValueMode { REQUEST_BODY, RESPONSE_ONLY, ENVELOPE }
 
   public EtechHttpSinkConfig(Map<String, String> originals) {
     super(CONFIG_DEF, originals);
@@ -141,7 +157,36 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
       .define(REP_ERROR_SASL_MECH, ConfigDef.Type.STRING, "",
               ConfigDef.Importance.LOW, "Reporter sasl.mechanism (error).")
       .define(REP_ERROR_SASL_JAAS, ConfigDef.Type.PASSWORD, "",
-              ConfigDef.Importance.LOW, "Reporter sasl.jaas.config (error).");
+              ConfigDef.Importance.LOW, "Reporter sasl.jaas.config (error).")
+
+      .define(REP_VALUE_MODE, ConfigDef.Type.STRING, "request_body",
+              ConfigDef.ValidString.in("request_body", "response_only", "envelope"),
+              ConfigDef.Importance.LOW, "Reported value shape.")
+      .define(REP_INCLUDE_INPUT_METADATA, ConfigDef.Type.BOOLEAN, true,
+              ConfigDef.Importance.LOW, "Include source topic/partition/offset/timestamp in report headers and envelope.")
+      .define(REP_INCLUDE_INPUT_KEY, ConfigDef.Type.BOOLEAN, true,
+              ConfigDef.Importance.LOW, "Include the transformed source key in report headers/envelope.")
+      .define(REP_INCLUDE_INPUT_PAYLOAD, ConfigDef.Type.BOOLEAN, true,
+              ConfigDef.Importance.LOW, "Include the transformed source value in report headers/envelope.")
+      .define(REP_INCLUDE_TRANSFORMED_INPUT_PAYLOAD, ConfigDef.Type.BOOLEAN, true,
+              ConfigDef.Importance.LOW, "Clarifies that input payload reporting uses the post-SMT record seen by the task.")
+      .define(REP_INCLUDE_REQUEST_BODY, ConfigDef.Type.BOOLEAN, false,
+              ConfigDef.Importance.LOW, "Include the rendered HTTP request body in report headers/envelope.")
+      .define(REP_INCLUDE_REQUEST_HEADERS, ConfigDef.Type.BOOLEAN, false,
+              ConfigDef.Importance.LOW, "Include rendered HTTP request headers in the envelope.")
+      .define(REP_INCLUDE_RESPONSE_CONTENT, ConfigDef.Type.BOOLEAN, true,
+              ConfigDef.Importance.LOW, "Include the HTTP response body in report headers/envelope, or as the value in response_only mode.")
+      .define(REP_INCLUDE_HTTP_METADATA, ConfigDef.Type.BOOLEAN, true,
+              ConfigDef.Importance.LOW, "Include HTTP status/method/url metadata as underscore headers.")
+      .define(REP_REDACTION_ENABLED, ConfigDef.Type.BOOLEAN, false,
+              ConfigDef.Importance.LOW, "Mask configured sensitive field names in reported text.")
+      .define(REP_REDACTION_FIELDS, ConfigDef.Type.LIST,
+              "iban,taxNumber,accountNumber,Authorization,client_secret",
+              ConfigDef.Importance.LOW, "Field/header names to mask when redaction is enabled.")
+      .define(REP_MAX_PAYLOAD_BYTES, ConfigDef.Type.INT, -1,
+              ConfigDef.Importance.LOW, "Max reported input/request payload size in characters; -1 disables truncation.")
+      .define(REP_MAX_RESPONSE_BYTES, ConfigDef.Type.INT, -1,
+              ConfigDef.Importance.LOW, "Max reported response size in characters; -1 disables truncation.");
 
   // --- typed accessors -------------------------------------------------------
   public String endpoint()             { return getString(HTTP_ENDPOINT); }
@@ -185,6 +230,23 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
         getString(REP_ERROR_SASL_MECH), getPassword(REP_ERROR_SASL_JAAS));
   }
   public String errorTopic()           { return getString(REP_ERROR_TOPIC); }
+
+  public ReportingValueMode reportingValueMode() {
+    return ReportingValueMode.valueOf(getString(REP_VALUE_MODE).toUpperCase());
+  }
+  public boolean reportInputMetadata() { return getBoolean(REP_INCLUDE_INPUT_METADATA); }
+  public boolean reportInputKey()      { return getBoolean(REP_INCLUDE_INPUT_KEY); }
+  public boolean reportInputPayload()  {
+    return getBoolean(REP_INCLUDE_INPUT_PAYLOAD) && getBoolean(REP_INCLUDE_TRANSFORMED_INPUT_PAYLOAD);
+  }
+  public boolean reportRequestBody()   { return getBoolean(REP_INCLUDE_REQUEST_BODY); }
+  public boolean reportRequestHeaders(){ return getBoolean(REP_INCLUDE_REQUEST_HEADERS); }
+  public boolean reportResponseContent(){ return getBoolean(REP_INCLUDE_RESPONSE_CONTENT); }
+  public boolean reportHttpMetadata()  { return getBoolean(REP_INCLUDE_HTTP_METADATA); }
+  public boolean reportRedactionEnabled(){ return getBoolean(REP_REDACTION_ENABLED); }
+  public List<String> reportRedactionFields(){ return getList(REP_REDACTION_FIELDS); }
+  public int reportMaxPayloadBytes()   { return getInt(REP_MAX_PAYLOAD_BYTES); }
+  public int reportMaxResponseBytes()  { return getInt(REP_MAX_RESPONSE_BYTES); }
 
   private static Map<String, Object> reporterProps(String bootstrap, String secProto,
                                                    String saslMech, Password saslJaas) {

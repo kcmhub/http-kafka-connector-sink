@@ -112,7 +112,35 @@ runtime in INFO with `PASSWORD`-typed keys redacted to `[hidden]`.
 
 ## What the reporter publishes
 
-Response bodies are echoed verbatim into the configured success/error topic.
-If your API returns sensitive material in error responses (PII, secrets, etc.)
-either disable the error reporter or restrict ACLs on the reporter topic.
+By default, the reporter publishes the rendered HTTP request body as the report
+value and the HTTP response body as the `response_content` header. If your API
+returns sensitive material in error responses (PII, secrets, etc.) either
+disable the error reporter, disable `connect.reporting.include.response.content`
+or restrict ACLs on the reporter topic.
+
+The connector can include the post-SMT input payload and rendered request body
+in headers/envelopes. On sensitive topics, explicitly disable payload/request
+capture unless it is needed for investigation:
+
+```json
+{
+  "connect.reporting.include.input.payload": "false",
+  "connect.reporting.include.request.body": "false"
+}
+```
+
+If payload/request capture is enabled, enable redaction and set explicit fields:
+
+```json
+{
+  "connect.reporting.redaction.enabled": "true",
+  "connect.reporting.redaction.fields": "iban,taxNumber,accountNumber,Authorization,client_secret",
+  "connect.reporting.max.payload.bytes": "20000",
+  "connect.reporting.max.response.bytes": "20000"
+}
+```
+
+Redaction is a safety net, not a replacement for topic ACLs. Treat ACK topics as
+potentially sensitive when they contain response bodies, input payloads or
+rendered request bodies.
 

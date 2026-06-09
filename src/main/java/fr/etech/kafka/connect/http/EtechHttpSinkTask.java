@@ -5,6 +5,7 @@ import fr.etech.kafka.connect.http.auth.BasicAuthAuthenticator;
 import fr.etech.kafka.connect.http.auth.NoAuthAuthenticator;
 import fr.etech.kafka.connect.http.auth.OAuth2ClientCredentialsAuthenticator;
 import fr.etech.kafka.connect.http.reporting.KafkaResponseReporter;
+import fr.etech.kafka.connect.http.reporting.ReportingOptions;
 import fr.etech.kafka.connect.http.retry.RetryPolicy;
 import fr.etech.kafka.connect.http.template.RecordTemplateRenderer;
 import java.net.URI;
@@ -50,7 +51,7 @@ public final class EtechHttpSinkTask extends SinkTask {
   private final AtomicLong errorCount = new AtomicLong();
   private String connectorName;
 
-  @Override public String version() { return "1.0.0"; }
+  @Override public String version() { return EtechHttpSinkConnector.connectorVersion(); }
 
   @Override public void start(Map<String, String> props) {
     this.cfg = new EtechHttpSinkConfig(props);
@@ -61,13 +62,14 @@ public final class EtechHttpSinkTask extends SinkTask {
         .build();
     this.auth = buildAuthenticator(cfg);
     this.retry = new RetryPolicy(cfg);
+    ReportingOptions reportingOptions = ReportingOptions.from(cfg);
     if (cfg.successEnabled() && !cfg.successTopic().isEmpty()) {
       this.successReporter = new KafkaResponseReporter(cfg.successReporterProps(),
-          cfg.successTopic(), connectorName + "-success-reporter");
+          cfg.successTopic(), connectorName + "-success-reporter", reportingOptions);
     }
     if (cfg.errorEnabled() && !cfg.errorTopic().isEmpty()) {
       this.errorReporter = new KafkaResponseReporter(cfg.errorReporterProps(),
-          cfg.errorTopic(), connectorName + "-error-reporter");
+          cfg.errorTopic(), connectorName + "-error-reporter", reportingOptions);
     }
     LOG.info("Started Etech HTTP sink `{}` -> {} {}", connectorName, cfg.method(), cfg.endpoint());
   }
@@ -98,7 +100,7 @@ public final class EtechHttpSinkTask extends SinkTask {
 
         if (code / 100 == 2) {
           if (successReporter != null) {
-            successReporter.publish(record, cfg.method(), url, code, resp.body());
+            successReporter.publish(record, cfg.method(), url, body, headers, code, resp.body());
           }
           LOG.debug("HTTP {} {} -> {}", cfg.method(), url, code);
           return;
@@ -116,7 +118,7 @@ public final class EtechHttpSinkTask extends SinkTask {
         }
         // Non-retryable, or retries exhausted.
         if (errorReporter != null) {
-          errorReporter.publish(record, cfg.method(), url, code, resp.body());
+          errorReporter.publish(record, cfg.method(), url, body, headers, code, resp.body());
         }
         throw new ConnectException("HTTP " + cfg.method() + " " + url
             + " failed with status " + code + ": " + truncate(resp.body(), 500));
