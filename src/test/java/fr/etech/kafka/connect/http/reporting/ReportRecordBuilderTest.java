@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.Test;
 
@@ -158,6 +161,51 @@ class ReportRecordBuilderTest {
     String envelope = asString(report.value());
     assertTrue(envelope.contains("after-smt"));
     assertEquals("{\"payload\":\"after-smt\"}", header(report, "input_payload"));
+  }
+
+  @Test
+  void structPayloadFieldIsReportedAsRawPayloadForBppAckCompatibility() {
+    ReportRecordBuilder builder = new ReportRecordBuilder(ReportingOptions.defaults());
+    Schema schema = SchemaBuilder.struct()
+        .field("payload", Schema.STRING_SCHEMA)
+        .build();
+    String payload = "{\"existingAccountNumber\":\"acc-1\",\"orderDate\":\"2025-03-19\"}";
+    SinkRecord record = record("BE99024210046", new Struct(schema).put("payload", payload), 5, 44L);
+
+    ProducerRecord<byte[], byte[]> report = builder.build(
+        "ack.error",
+        record,
+        "POST",
+        "https://api.example.test/v1/orders",
+        payload,
+        Map.of(),
+        200,
+        "{\"success\":false}");
+
+    assertEquals(payload, header(report, "input_payload"));
+    assertFalse(header(report, "input_payload").startsWith("Struct{"));
+  }
+
+  @Test
+  void genericStructWithoutPayloadFieldIsReportedAsJsonObject() {
+    ReportRecordBuilder builder = new ReportRecordBuilder(ReportingOptions.defaults());
+    Schema schema = SchemaBuilder.struct()
+        .field("name", Schema.STRING_SCHEMA)
+        .field("amount", Schema.FLOAT64_SCHEMA)
+        .build();
+    SinkRecord record = record("customer-1", new Struct(schema).put("name", "Acme").put("amount", 12.5), 0, 8L);
+
+    ProducerRecord<byte[], byte[]> report = builder.build(
+        "ack.success",
+        record,
+        "POST",
+        "https://api.example.test/v1/accounts",
+        "{\"name\":\"Acme\",\"amount\":12.5}",
+        Map.of(),
+        201,
+        "{\"success\":true}");
+
+    assertEquals("{\"name\":\"Acme\",\"amount\":12.5}", header(report, "input_payload"));
   }
 
   @Test

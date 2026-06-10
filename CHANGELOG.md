@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] — 2026-06-10
+
+### Fixed
+- Response reporting now renders schemaful Kafka Connect `Struct` values as
+  JSON instead of `Struct{...}` text.
+- For ACK compatibility, `Struct` or `Map` values containing a `payload` field
+  report that field as `input_payload`, so downstream consumers receive the
+  original JSON request body.
+
 ## [1.1.0] — 2026-06-09
 
 ### Added
