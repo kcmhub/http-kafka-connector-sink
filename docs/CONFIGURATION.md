@@ -91,6 +91,7 @@ acknowledgement.
 | `connect.reporting.include.request.body` | bool | `false` | Include the rendered HTTP request body. |
 | `connect.reporting.include.request.headers` | bool | `false` | Include rendered HTTP request headers in `envelope` mode. |
 | `connect.reporting.include.response.content` | bool | `true` | Include the response body as `response_content` and in `envelope` mode. |
+| `connect.reporting.include.response.headers` | bool | `false` | Include response headers as JSON in Kafka header `response_headers` and in `envelope` mode. |
 | `connect.reporting.include.http.metadata` | bool | `true` | Include `http_status_code`, `http_method` and `http_url` headers. |
 | `connect.reporting.redaction.enabled` | bool | `false` | Mask configured sensitive fields in reported text. |
 | `connect.reporting.redaction.fields` | list | `iban,taxNumber,accountNumber,Authorization,client_secret` | Field/header names to mask when redaction is enabled. |
@@ -108,6 +109,7 @@ Each reported record carries the following headers:
 | `input_key` | the source key, present with null value when the source key is null |
 | `input_payload` | the source value, after Kafka Connect SMTs |
 | `response_content` | the HTTP response body |
+| `response_headers` | the HTTP response headers as a JSON object (`name -> array of values`), when `include.response.headers=true` |
 | `response_status_code` | the HTTP status code |
 | `response_status` / `status_code` | compatibility aliases for the HTTP status code |
 | `http_status_code` | e.g. `201`, when `include.http.metadata=true` |
@@ -142,6 +144,9 @@ When `connect.reporting.value.mode=envelope`, the value is a JSON document:
     "response_status": 200,
     "response_status_code": 200,
     "status_code": 200,
+    "response_headers": {
+      "Content-Type": ["application/json"]
+    },
     "response_content": "{...}"
   }
 }

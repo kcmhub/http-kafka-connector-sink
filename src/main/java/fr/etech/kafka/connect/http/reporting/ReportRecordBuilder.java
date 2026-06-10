@@ -32,9 +32,12 @@ public final class ReportRecordBuilder {
       String requestBody,
       Map<String, String> requestHeaders,
       int status,
-      String responseBody) {
+      String responseBody,
+      Map<String, List<String>> responseHeaders) {
     String sanitizedRequestBody = sanitizePayload(requestBody, options.maxPayloadBytes());
     String sanitizedResponseBody = sanitizePayload(responseBody, options.maxResponseBytes());
+    Map<String, String> sanitizedRequestHeaders = sanitizeHeaders(requestHeaders);
+    Map<String, List<String>> sanitizedResponseHeaders = sanitizeResponseHeaders(responseHeaders);
     boolean inputKeyIsNull = original.key() == null;
     String sanitizedInputKey = inputKeyIsNull
         ? null
@@ -42,7 +45,7 @@ public final class ReportRecordBuilder {
     String sanitizedInputPayload = sanitizePayload(stringify(original.value()), options.maxPayloadBytes());
 
     byte[] value = reportedValue(original, method, url, sanitizedRequestBody,
-        sanitizeHeaders(requestHeaders), status, sanitizedResponseBody,
+        sanitizedRequestHeaders, status, sanitizedResponseBody, sanitizedResponseHeaders,
         sanitizedInputKey, sanitizedInputPayload);
     ProducerRecord<byte[], byte[]> rec = new ProducerRecord<>(
         reportTopic,
@@ -66,6 +69,9 @@ public final class ReportRecordBuilder {
     if (options.includeResponseContent()) {
       addHeader(rec, "response_content", sanitizedResponseBody);
     }
+    if (options.includeResponseHeaders()) {
+      addHeader(rec, "response_headers", toJson(sanitizedResponseHeaders));
+    }
     return rec;
   }
 
@@ -77,6 +83,7 @@ public final class ReportRecordBuilder {
       Map<String, String> requestHeaders,
       int status,
       String responseBody,
+      Map<String, List<String>> responseHeaders,
       String inputKey,
       String inputPayload) {
     if (options.valueMode() == ReportingOptions.ValueMode.REQUEST_BODY) {
@@ -112,6 +119,7 @@ public final class ReportRecordBuilder {
     response.put("response_status_code", status);
     response.put("status_code", status);
     if (options.includeResponseContent()) response.put("response_content", responseBody);
+    if (options.includeResponseHeaders()) response.put("response_headers", responseHeaders);
     envelope.put("response", response);
 
     try {
@@ -146,6 +154,33 @@ public final class ReportRecordBuilder {
       String key = entry.getKey();
       String value = sensitiveField(key) ? "***" : sanitizePayload(entry.getValue(), options.maxPayloadBytes());
       sanitized.put(key, value);
+    }
+    return sanitized;
+  }
+
+  private Map<String, List<String>> sanitizeResponseHeaders(Map<String, List<String>> headers) {
+    Map<String, List<String>> sanitized = new LinkedHashMap<>();
+    if (headers == null) return sanitized;
+    for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+      String key = entry.getKey();
+      List<String> values = entry.getValue();
+      if (sensitiveField(key)) {
+        if (values == null || values.isEmpty()) {
+          sanitized.put(key, List.of("***"));
+          continue;
+        }
+        List<String> masked = new ArrayList<>(values.size());
+        for (int i = 0; i < values.size(); i++) masked.add("***");
+        sanitized.put(key, masked);
+        continue;
+      }
+      List<String> cleaned = new ArrayList<>();
+      if (values != null) {
+        for (String value : values) {
+          cleaned.add(sanitizePayload(value, options.maxResponseBytes()));
+        }
+      }
+      sanitized.put(key, cleaned);
     }
     return sanitized;
   }

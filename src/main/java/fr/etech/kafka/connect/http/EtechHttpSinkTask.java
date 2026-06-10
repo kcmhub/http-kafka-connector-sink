@@ -100,7 +100,7 @@ public final class EtechHttpSinkTask extends SinkTask {
 
         if (code / 100 == 2) {
           if (successReporter != null) {
-            successReporter.publish(record, cfg.method(), url, body, headers, code, resp.body());
+            successReporter.publish(record, cfg.method(), url, body, headers, code, resp.body(), resp.headers().map());
           }
           LOG.debug("HTTP {} {} -> {}", cfg.method(), url, code);
           return;
@@ -118,7 +118,7 @@ public final class EtechHttpSinkTask extends SinkTask {
         }
         // Non-retryable, or retries exhausted.
         if (errorReporter != null) {
-          errorReporter.publish(record, cfg.method(), url, body, headers, code, resp.body());
+          errorReporter.publish(record, cfg.method(), url, body, headers, code, resp.body(), resp.headers().map());
         }
         throw new ConnectException("HTTP " + cfg.method() + " " + url
             + " failed with status " + code + ": " + truncate(resp.body(), 500));

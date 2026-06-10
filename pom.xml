@@ -4,7 +4,7 @@
 
   <groupId>fr.etech</groupId>
   <artifactId>etech-kafka-connect-http</artifactId>
-  <version>1.1.1</version>
+  <version>1.2.0</version>
   <packaging>jar</packaging>
 
   <name>Etech Kafka Connect HTTP Sink</name>

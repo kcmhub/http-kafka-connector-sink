@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-06-10
+
+### Added
+- Optional HTTP response headers reporting via
+  `connect.reporting.include.response.headers` (default `false`).
+- New Kafka report header `response_headers` containing JSON
+  (`header-name -> array of values`) when enabled.
+- Envelope support for response headers in `response.response_headers`.
+- Redaction support for sensitive HTTP response header names using
+  `connect.reporting.redaction.fields` when redaction is enabled.
+- Dedicated unit tests covering default-disabled behavior, header JSON rendering
+  and redaction.
+
 ## [1.1.1] — 2026-06-10
 
 ### Fixed

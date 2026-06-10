@@ -29,7 +29,7 @@ and a Mustache-style templating language for the URL, body and headers.
 | **Templating**       | `{{key}}` · `{{value}}` · `{{value.<dotted.path>}}` · `{{header.<name>}}` · `{{topic}} / {{partition}} / {{offset}} / {{timestamp}}` |
 | **Authentication**   | `none` · `basic` · `oauth2` (client_credentials, cached + auto-refresh on 401 / expiry) |
 | **Retries**          | Exponential backoff on configurable status codes **and** transport `IOException` |
-| **Response reporting** | 2xx → success topic · non-2xx → error topic, request-body ACK value by default, response headers, optional envelope, Kafka input metadata, request/response capture and redaction |
+| **Response reporting** | 2xx → success topic · non-2xx → error topic, request-body ACK value by default, optional `response_headers` JSON, optional envelope, Kafka input metadata, request/response capture and redaction |
 | **Dead-letter queue** | Delegated to the Connect runtime (`errors.deadletterqueue.*`) |
 | **Secrets**          | Full `${file:…}` `ConfigProvider` support (works with `FileConfigProvider`, `DirectoryConfigProvider`, KV-vault providers) |
 | **Footprint**        | ~30 KB jar · no extra runtime deps · loaded under standard `plugin.path` |
@@ -44,12 +44,12 @@ and a Mustache-style templating language for the URL, body and headers.
 
 Produces:
 
-- `target/etech-kafka-connect-http-1.1.0.jar` — the connector
-- `target/etech-kafka-connect-http-1.1.0.zip` — Confluent-Hub-style component
+- `target/etech-kafka-connect-http-1.2.0.jar` — the connector
+- `target/etech-kafka-connect-http-1.2.0.zip` — Confluent-Hub-style component
   with the layout
   ```
-  etech-kafka-connect-http-1.1.0/
-    lib/etech-kafka-connect-http-1.1.0.jar
+  etech-kafka-connect-http-1.2.0/
+    lib/etech-kafka-connect-http-1.2.0.jar
     manifest.json
     README.md
   ```
@@ -58,9 +58,9 @@ Produces:
 
 | Target | Action |
 |---|---|
-| **Confluent Platform / cp-kafka-connect** | `unzip etech-kafka-connect-http-1.1.0.zip -d /usr/share/confluent-hub-components/` and restart the worker. |
+| **Confluent Platform / cp-kafka-connect** | `unzip etech-kafka-connect-http-1.2.0.zip -d /usr/share/confluent-hub-components/` and restart the worker. |
 | **Apache Kafka Connect** | Drop the jar under any directory listed in `plugin.path`. |
-| **Docker compose** | Bind-mount the jar at `/opt/connectors/etech-kafka-connect-http/lib/etech-kafka-connect-http-1.1.0.jar` and add that directory to `CONNECT_PLUGIN_PATH`. |
+| **Docker compose** | Bind-mount the jar at `/opt/connectors/etech-kafka-connect-http/lib/etech-kafka-connect-http-1.2.0.jar` and add that directory to `CONNECT_PLUGIN_PATH`. |
 
 ### Register a connector
 
@@ -112,6 +112,18 @@ Default ACK headers include `input_topic`, `input_partition`, `input_offset`,
 `response_status_code`. Optional HTTP metadata uses underscore names such as
 `http_status_code`, `http_method` and `http_url`; the connector does not emit
 old `http.*` / `input.*` dotted aliases.
+
+To include HTTP response headers in reports, opt in explicitly (default `false`):
+
+```json
+{
+  "connect.reporting.include.response.headers": "true"
+}
+```
+
+When enabled, the reporter adds a Kafka header named `response_headers` containing
+JSON (`header-name -> array of values`). In `envelope` mode, the same object is
+also available under `response.response_headers`.
 
 For incident analysis, use `envelope` mode and opt in to input/request capture
 with redaction:
