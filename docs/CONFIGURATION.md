@@ -92,6 +92,8 @@ acknowledgement.
 | `connect.reporting.include.request.headers` | bool | `false` | Include rendered HTTP request headers in `envelope` mode. |
 | `connect.reporting.include.response.content` | bool | `true` | Include the response body as `response_content` and in `envelope` mode. |
 | `connect.reporting.include.response.headers` | bool | `false` | Include response headers as JSON in Kafka header `response_headers` and in `envelope` mode. |
+| `connect.reporting.response.headers.filter.names` | list | `""` | Optional allowlist of response header names (exact match, case-insensitive). Empty means no filtering. |
+| `connect.reporting.response.headers.filter.regex` | string | `""` | Optional allowlist regex applied to response header names (case-insensitive). Empty means no filtering. |
 | `connect.reporting.include.http.metadata` | bool | `true` | Include `http_status_code`, `http_method` and `http_url` headers. |
 | `connect.reporting.redaction.enabled` | bool | `false` | Mask configured sensitive fields in reported text. |
 | `connect.reporting.redaction.fields` | list | `iban,taxNumber,accountNumber,Authorization,client_secret` | Field/header names to mask when redaction is enabled. |
@@ -122,6 +124,10 @@ a null source key remains a null reported key.
 In the default `request_body` mode, the value is the rendered HTTP request body
 (raw bytes). In `response_only` mode, the value is the HTTP response body (raw
 bytes).
+
+When response headers are enabled, filtering keeps only headers matching the
+exact-name allowlist and/or the regex allowlist (`exact OR regex`). If both
+filters are empty, all response headers are reported.
 
 When `connect.reporting.value.mode=envelope`, the value is a JSON document:
 

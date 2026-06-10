@@ -69,6 +69,8 @@ class ReportRecordBuilderTest {
         false,
         false,
         List.of(),
+        List.of(),
+        null,
         -1,
         -1);
     ReportRecordBuilder builder = new ReportRecordBuilder(options);
@@ -103,6 +105,8 @@ class ReportRecordBuilderTest {
         true,
         true,
         List.of("iban", "taxNumber", "accountNumber", "Authorization", "client_secret"),
+        List.of(),
+        null,
         10_000,
         10_000);
     ReportRecordBuilder builder = new ReportRecordBuilder(options);
@@ -155,6 +159,8 @@ class ReportRecordBuilderTest {
         false,
         false,
         List.of(),
+        List.of(),
+        null,
         -1,
         -1);
     ReportRecordBuilder builder = new ReportRecordBuilder(options);
@@ -279,6 +285,8 @@ class ReportRecordBuilderTest {
         true,
         false,
         List.of(),
+        List.of(),
+        null,
         -1,
         -1);
     ReportRecordBuilder builder = new ReportRecordBuilder(options);
@@ -299,6 +307,90 @@ class ReportRecordBuilderTest {
     assertNotNull(headerJson);
     assertTrue(headerJson.contains("\"X-Request-Id\":[\"req-1\"]"));
     assertTrue(headerJson.contains("\"Set-Cookie\":[\"a=1\",\"b=2\"]"));
+  }
+
+  @Test
+  void responseHeadersCanBeFilteredByExactName() {
+    ReportingOptions options = new ReportingOptions(
+        ReportingOptions.ValueMode.REQUEST_BODY,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        false,
+        List.of(),
+        List.of("zuora-track-id"),
+        null,
+        -1,
+        -1);
+    ReportRecordBuilder builder = new ReportRecordBuilder(options);
+    SinkRecord record = record("input-key", "{\"payload\":\"transformed\"}", 2, 53L);
+
+    ProducerRecord<byte[], byte[]> report = builder.build(
+        "ack.success",
+        record,
+        "POST",
+        "https://api.example.test/v1/orders",
+        "{\"order\":1}",
+        Map.of(),
+        200,
+        "{\"success\":true}",
+        Map.of(
+            "zuora-request-id", List.of("req-1"),
+            "zuora-track-id", List.of("trk-1"),
+            "content-type", List.of("application/json")));
+
+    String headerJson = header(report, "response_headers");
+    assertNotNull(headerJson);
+    assertTrue(headerJson.contains("\"zuora-track-id\":[\"trk-1\"]"));
+    assertFalse(headerJson.contains("zuora-request-id"));
+    assertFalse(headerJson.contains("content-type"));
+  }
+
+  @Test
+  void responseHeadersCanBeFilteredByRegex() {
+    ReportingOptions options = new ReportingOptions(
+        ReportingOptions.ValueMode.REQUEST_BODY,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        false,
+        List.of(),
+        List.of(),
+        java.util.regex.Pattern.compile("zuora.*", java.util.regex.Pattern.CASE_INSENSITIVE),
+        -1,
+        -1);
+    ReportRecordBuilder builder = new ReportRecordBuilder(options);
+    SinkRecord record = record("input-key", "{\"payload\":\"transformed\"}", 2, 53L);
+
+    ProducerRecord<byte[], byte[]> report = builder.build(
+        "ack.success",
+        record,
+        "POST",
+        "https://api.example.test/v1/orders",
+        "{\"order\":1}",
+        Map.of(),
+        200,
+        "{\"success\":true}",
+        Map.of(
+            "zuora-request-id", List.of("req-1"),
+            "zuora-version", List.of("0"),
+            "content-type", List.of("application/json")));
+
+    String headerJson = header(report, "response_headers");
+    assertNotNull(headerJson);
+    assertTrue(headerJson.contains("\"zuora-request-id\":[\"req-1\"]"));
+    assertTrue(headerJson.contains("\"zuora-version\":[\"0\"]"));
+    assertFalse(headerJson.contains("content-type"));
   }
 
   private static SinkRecord record(Object key, Object value, int partition, long offset) {
