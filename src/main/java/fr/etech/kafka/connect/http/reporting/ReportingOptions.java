@@ -20,6 +20,7 @@ public final class ReportingOptions {
   private final boolean includeRequestBody;
   private final boolean includeRequestHeaders;
   private final boolean includeResponseContent;
+  private final boolean includeResponseHeaders;
   private final boolean includeHttpMetadata;
   private final boolean redactionEnabled;
   private final List<String> redactionFields;
@@ -34,6 +35,7 @@ public final class ReportingOptions {
       boolean includeRequestBody,
       boolean includeRequestHeaders,
       boolean includeResponseContent,
+      boolean includeResponseHeaders,
       boolean includeHttpMetadata,
       boolean redactionEnabled,
       List<String> redactionFields,
@@ -46,6 +48,7 @@ public final class ReportingOptions {
     this.includeRequestBody = includeRequestBody;
     this.includeRequestHeaders = includeRequestHeaders;
     this.includeResponseContent = includeResponseContent;
+    this.includeResponseHeaders = includeResponseHeaders;
     this.includeHttpMetadata = includeHttpMetadata;
     this.redactionEnabled = redactionEnabled;
     this.redactionFields = Collections.unmodifiableList(new ArrayList<>(redactionFields));
@@ -62,6 +65,7 @@ public final class ReportingOptions {
         cfg.reportRequestBody(),
         cfg.reportRequestHeaders(),
         cfg.reportResponseContent(),
+        cfg.reportResponseHeaders(),
         cfg.reportHttpMetadata(),
         cfg.reportRedactionEnabled(),
         cfg.reportRedactionFields(),
@@ -78,6 +82,7 @@ public final class ReportingOptions {
         false,
         false,
         true,
+        false,
         true,
         false,
         List.of("iban", "taxNumber", "accountNumber", "Authorization", "client_secret"),
@@ -92,6 +97,7 @@ public final class ReportingOptions {
   public boolean includeRequestBody() { return includeRequestBody; }
   public boolean includeRequestHeaders() { return includeRequestHeaders; }
   public boolean includeResponseContent() { return includeResponseContent; }
+  public boolean includeResponseHeaders() { return includeResponseHeaders; }
   public boolean includeHttpMetadata() { return includeHttpMetadata; }
   public boolean redactionEnabled() { return redactionEnabled; }
   public List<String> redactionFields() { return redactionFields; }

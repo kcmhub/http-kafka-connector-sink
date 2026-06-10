@@ -1,6 +1,7 @@
 package fr.etech.kafka.connect.http.reporting;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -23,7 +24,7 @@ import org.slf4j.LoggerFactory;
  *   <li>headers — HTTP metadata plus optional input/request/response data</li>
  * </ul>
  *
- * <p>{@link #publish(SinkRecord, String, String, int, String)} is fire-and-forget:
+ * <p>{@link #publish(SinkRecord, String, String, String, Map, int, String, Map)} is fire-and-forget:
  * any send failure is logged at WARN but never propagated to the task — the
  * point of reporting is observability, not correctness.
  */
@@ -53,10 +54,12 @@ public final class KafkaResponseReporter implements AutoCloseable {
   }
 
   public void publish(SinkRecord original, String method, String url, String requestBody,
-                      Map<String, String> requestHeaders, int status, String responseBody) {
+                      Map<String, String> requestHeaders, int status, String responseBody,
+                      Map<String, List<String>> responseHeaders) {
     try {
       ProducerRecord<byte[], byte[]> rec = reportRecordBuilder.build(
-          topic, original, method, url, requestBody, requestHeaders, status, responseBody);
+          topic, original, method, url, requestBody, requestHeaders, status, responseBody,
+          responseHeaders);
       producer.send(rec, (md, ex) -> {
         if (ex != null) LOG.warn("Failed to publish HTTP report to {}: {}", topic, ex.getMessage());
       });

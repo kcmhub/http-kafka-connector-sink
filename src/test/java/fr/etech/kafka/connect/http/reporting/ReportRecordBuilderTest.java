@@ -34,7 +34,8 @@ class ReportRecordBuilderTest {
         request,
         Map.of("Content-Type", "application/json"),
         200,
-        response);
+        response,
+        Map.of("Content-Type", List.of("application/json")));
 
     assertEquals(request, asString(report.value()));
     assertEquals("source.topic", header(report, "input_topic"));
@@ -66,6 +67,7 @@ class ReportRecordBuilderTest {
         true,
         false,
         false,
+        false,
         List.of(),
         -1,
         -1);
@@ -81,7 +83,8 @@ class ReportRecordBuilderTest {
         "{\"order\":1}",
         Map.of("Content-Type", "application/json"),
         200,
-        response);
+        response,
+        Map.of("Content-Type", List.of("application/json")));
 
     assertEquals(response, asString(report.value()));
   }
@@ -90,6 +93,7 @@ class ReportRecordBuilderTest {
   void envelopeCanIncludeInputRequestAndResponseWithRedaction() {
     ReportingOptions options = new ReportingOptions(
         ReportingOptions.ValueMode.ENVELOPE,
+        true,
         true,
         true,
         true,
@@ -113,7 +117,8 @@ class ReportRecordBuilderTest {
         "{\"client_secret\":\"secret-value\",\"amount\":12}",
         Map.of("Authorization", "Bearer token", "Content-Type", "application/json"),
         201,
-        "{\"success\":true,\"accountNumber\":\"A0001\"}");
+        "{\"success\":true,\"accountNumber\":\"A0001\"}",
+        Map.of("Authorization", List.of("Bearer token"), "X-Correlation-Id", List.of("corr-1")));
 
     String envelope = asString(report.value());
     assertTrue(envelope.contains("\"input_offset\":7"));
@@ -127,7 +132,13 @@ class ReportRecordBuilderTest {
     assertFalse(envelope.contains("A0001"));
     assertFalse(envelope.contains("secret-value"));
     assertFalse(envelope.contains("Bearer token"));
-    assertEquals("***", header(report, "input_payload").contains("BE123") ? "leaked" : "***");
+    assertTrue(envelope.contains("\"response_headers\""));
+    String inputPayload = header(report, "input_payload");
+    assertNotNull(inputPayload);
+    assertEquals("***", inputPayload.contains("BE123") ? "leaked" : "***");
+    String responseHeadersJson = header(report, "response_headers");
+    assertNotNull(responseHeadersJson);
+    assertTrue(responseHeadersJson.contains("\"Authorization\":[\"***\"]"));
   }
 
   @Test
@@ -140,6 +151,7 @@ class ReportRecordBuilderTest {
         true,
         false,
         true,
+        false,
         false,
         false,
         List.of(),
@@ -156,7 +168,8 @@ class ReportRecordBuilderTest {
         "{\"payload\":\"after-smt\"}",
         Map.of(),
         200,
-        "{\"success\":true}");
+        "{\"success\":true}",
+        Map.of());
 
     String envelope = asString(report.value());
     assertTrue(envelope.contains("after-smt"));
@@ -180,10 +193,13 @@ class ReportRecordBuilderTest {
         payload,
         Map.of(),
         200,
-        "{\"success\":false}");
+        "{\"success\":false}",
+        Map.of());
 
     assertEquals(payload, header(report, "input_payload"));
-    assertFalse(header(report, "input_payload").startsWith("Struct{"));
+    String inputPayload = header(report, "input_payload");
+    assertNotNull(inputPayload);
+    assertFalse(inputPayload.startsWith("Struct{"));
   }
 
   @Test
@@ -203,7 +219,8 @@ class ReportRecordBuilderTest {
         "{\"name\":\"Acme\",\"amount\":12.5}",
         Map.of(),
         201,
-        "{\"success\":true}");
+        "{\"success\":true}",
+        Map.of());
 
     assertEquals("{\"name\":\"Acme\",\"amount\":12.5}", header(report, "input_payload"));
   }
@@ -221,11 +238,67 @@ class ReportRecordBuilderTest {
         "{\"order\":1}",
         Map.of(),
         200,
-        "{\"success\":true}");
+        "{\"success\":true}",
+        Map.of());
 
     assertNotNull(report.headers().lastHeader("input_key"));
     assertNull(report.headers().lastHeader("input_key").value());
     assertNull(report.key());
+  }
+
+  @Test
+  void responseHeadersAreDisabledByDefault() {
+    ReportRecordBuilder builder = new ReportRecordBuilder(ReportingOptions.defaults());
+    SinkRecord record = record("input-key", "{\"payload\":\"transformed\"}", 2, 53L);
+
+    ProducerRecord<byte[], byte[]> report = builder.build(
+        "ack.success",
+        record,
+        "POST",
+        "https://api.example.test/v1/orders",
+        "{\"order\":1}",
+        Map.of(),
+        200,
+        "{\"success\":true}",
+        Map.of("X-Request-Id", List.of("req-1")));
+
+    assertNull(report.headers().lastHeader("response_headers"));
+  }
+
+  @Test
+  void responseHeadersCanBePublishedAsKafkaHeaderJson() {
+    ReportingOptions options = new ReportingOptions(
+        ReportingOptions.ValueMode.REQUEST_BODY,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        false,
+        List.of(),
+        -1,
+        -1);
+    ReportRecordBuilder builder = new ReportRecordBuilder(options);
+    SinkRecord record = record("input-key", "{\"payload\":\"transformed\"}", 2, 53L);
+
+    ProducerRecord<byte[], byte[]> report = builder.build(
+        "ack.success",
+        record,
+        "POST",
+        "https://api.example.test/v1/orders",
+        "{\"order\":1}",
+        Map.of(),
+        200,
+        "{\"success\":true}",
+        Map.of("X-Request-Id", List.of("req-1"), "Set-Cookie", List.of("a=1", "b=2")));
+
+    String headerJson = header(report, "response_headers");
+    assertNotNull(headerJson);
+    assertTrue(headerJson.contains("\"X-Request-Id\":[\"req-1\"]"));
+    assertTrue(headerJson.contains("\"Set-Cookie\":[\"a=1\",\"b=2\"]"));
   }
 
   private static SinkRecord record(Object key, Object value, int partition, long offset) {

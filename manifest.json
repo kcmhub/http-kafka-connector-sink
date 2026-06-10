@@ -1,6 +1,6 @@
 {
   "name": "etech-kafka-connect-http",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "title": "Etech Kafka Connect HTTP Sink",
   "description": "Open-source HTTP sink connector for Apache Kafka Connect. Full REST verb coverage (GET / POST / PUT / PATCH / DELETE), Mustache-style templating, OAuth2 client_credentials and Basic auth, exponential-backoff retries, optional Kafka response reporting and native DLQ integration.",
   "owner": {
