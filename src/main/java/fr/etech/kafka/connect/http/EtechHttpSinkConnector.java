@@ -27,7 +27,7 @@ public final class EtechHttpSinkConnector extends SinkConnector {
     Package pkg = EtechHttpSinkConnector.class.getPackage();
     String implementationVersion = pkg == null ? null : pkg.getImplementationVersion();
     return implementationVersion == null || implementationVersion.isBlank()
-        ? "1.2.0"
+        ? "unknown"
         : implementationVersion;
   }
 
@@ -49,4 +49,3 @@ public final class EtechHttpSinkConnector extends SinkConnector {
 
   @Override public ConfigDef config() { return EtechHttpSinkConfig.CONFIG_DEF; }
 }
-
