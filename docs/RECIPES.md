@@ -199,7 +199,9 @@ headers.
   "connect.reporting.include.input.metadata": "true",
   "connect.reporting.include.input.key": "true",
   "connect.reporting.include.input.payload": "true",
-  "connect.reporting.include.response.content": "true"
+  "connect.reporting.include.response.content": "true",
+  "connect.reporting.include.response.headers": "true",
+  "connect.reporting.response.headers.filter.regex": "zuora.*"
 }
 ```
 

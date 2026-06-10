@@ -163,6 +163,7 @@ public final class ReportRecordBuilder {
     if (headers == null) return sanitized;
     for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
       String key = entry.getKey();
+      if (!includeResponseHeader(key)) continue;
       List<String> values = entry.getValue();
       if (sensitiveField(key)) {
         if (values == null || values.isEmpty()) {
@@ -183,6 +184,21 @@ public final class ReportRecordBuilder {
       sanitized.put(key, cleaned);
     }
     return sanitized;
+  }
+
+  private boolean includeResponseHeader(String headerName) {
+    if (!options.hasResponseHeadersFilter()) return true;
+    if (headerName == null) return false;
+    boolean exactMatch = false;
+    for (String exact : options.responseHeadersFilterNames()) {
+      if (headerName.equalsIgnoreCase(exact)) {
+        exactMatch = true;
+        break;
+      }
+    }
+    if (exactMatch) return true;
+    return options.responseHeadersFilterRegex() != null
+        && options.responseHeadersFilterRegex().matcher(headerName).matches();
   }
 
   private String sanitizePayload(String input, int maxChars) {

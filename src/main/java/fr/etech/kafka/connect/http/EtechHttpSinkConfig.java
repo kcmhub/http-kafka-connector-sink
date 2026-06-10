@@ -68,6 +68,10 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
   public static final String REP_INCLUDE_REQUEST_HEADERS = "connect.reporting.include.request.headers";
   public static final String REP_INCLUDE_RESPONSE_CONTENT = "connect.reporting.include.response.content";
   public static final String REP_INCLUDE_RESPONSE_HEADERS = "connect.reporting.include.response.headers";
+  public static final String REP_RESPONSE_HEADERS_FILTER_NAMES =
+      "connect.reporting.response.headers.filter.names";
+  public static final String REP_RESPONSE_HEADERS_FILTER_REGEX =
+      "connect.reporting.response.headers.filter.regex";
   public static final String REP_INCLUDE_HTTP_METADATA = "connect.reporting.include.http.metadata";
   public static final String REP_REDACTION_ENABLED     = "connect.reporting.redaction.enabled";
   public static final String REP_REDACTION_FIELDS      = "connect.reporting.redaction.fields";
@@ -179,6 +183,12 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
               ConfigDef.Importance.LOW, "Include the HTTP response body in report headers/envelope, or as the value in response_only mode.")
       .define(REP_INCLUDE_RESPONSE_HEADERS, ConfigDef.Type.BOOLEAN, false,
               ConfigDef.Importance.LOW, "Include HTTP response headers as JSON in report headers/envelope.")
+      .define(REP_RESPONSE_HEADERS_FILTER_NAMES, ConfigDef.Type.LIST, "",
+              ConfigDef.Importance.LOW,
+              "Optional allowlist of response header names (exact match, case-insensitive).")
+      .define(REP_RESPONSE_HEADERS_FILTER_REGEX, ConfigDef.Type.STRING, "",
+              ConfigDef.Importance.LOW,
+              "Optional regex allowlist for response header names (case-insensitive).")
       .define(REP_INCLUDE_HTTP_METADATA, ConfigDef.Type.BOOLEAN, true,
               ConfigDef.Importance.LOW, "Include HTTP status/method/url metadata as underscore headers.")
       .define(REP_REDACTION_ENABLED, ConfigDef.Type.BOOLEAN, false,
@@ -246,6 +256,12 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
   public boolean reportRequestHeaders(){ return getBoolean(REP_INCLUDE_REQUEST_HEADERS); }
   public boolean reportResponseContent(){ return getBoolean(REP_INCLUDE_RESPONSE_CONTENT); }
   public boolean reportResponseHeaders(){ return getBoolean(REP_INCLUDE_RESPONSE_HEADERS); }
+  public List<String> reportResponseHeadersFilterNames() {
+    return getList(REP_RESPONSE_HEADERS_FILTER_NAMES);
+  }
+  public String reportResponseHeadersFilterRegex() {
+    return getString(REP_RESPONSE_HEADERS_FILTER_REGEX);
+  }
   public boolean reportHttpMetadata()  { return getBoolean(REP_INCLUDE_HTTP_METADATA); }
   public boolean reportRedactionEnabled(){ return getBoolean(REP_REDACTION_ENABLED); }
   public List<String> reportRedactionFields(){ return getList(REP_REDACTION_FIELDS); }

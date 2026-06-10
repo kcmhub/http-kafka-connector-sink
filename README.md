@@ -44,12 +44,12 @@ and a Mustache-style templating language for the URL, body and headers.
 
 Produces:
 
-- `target/etech-kafka-connect-http-1.2.0.jar` — the connector
-- `target/etech-kafka-connect-http-1.2.0.zip` — Confluent-Hub-style component
+- `target/etech-kafka-connect-http-1.3.0.jar` — the connector
+- `target/etech-kafka-connect-http-1.3.0.zip` — Confluent-Hub-style component
   with the layout
   ```
-  etech-kafka-connect-http-1.2.0/
-    lib/etech-kafka-connect-http-1.2.0.jar
+  etech-kafka-connect-http-1.3.0/
+    lib/etech-kafka-connect-http-1.3.0.jar
     manifest.json
     README.md
   ```
@@ -58,9 +58,9 @@ Produces:
 
 | Target | Action |
 |---|---|
-| **Confluent Platform / cp-kafka-connect** | `unzip etech-kafka-connect-http-1.2.0.zip -d /usr/share/confluent-hub-components/` and restart the worker. |
+| **Confluent Platform / cp-kafka-connect** | `unzip etech-kafka-connect-http-1.3.0.zip -d /usr/share/confluent-hub-components/` and restart the worker. |
 | **Apache Kafka Connect** | Drop the jar under any directory listed in `plugin.path`. |
-| **Docker compose** | Bind-mount the jar at `/opt/connectors/etech-kafka-connect-http/lib/etech-kafka-connect-http-1.2.0.jar` and add that directory to `CONNECT_PLUGIN_PATH`. |
+| **Docker compose** | Bind-mount the jar at `/opt/connectors/etech-kafka-connect-http/lib/etech-kafka-connect-http-1.3.0.jar` and add that directory to `CONNECT_PLUGIN_PATH`. |
 
 ### Register a connector
 
@@ -117,13 +117,25 @@ To include HTTP response headers in reports, opt in explicitly (default `false`)
 
 ```json
 {
-  "connect.reporting.include.response.headers": "true"
+  "connect.reporting.include.response.headers": "true",
+  "connect.reporting.response.headers.filter.regex": "zuora.*"
 }
 ```
 
 When enabled, the reporter adds a Kafka header named `response_headers` containing
 JSON (`header-name -> array of values`). In `envelope` mode, the same object is
 also available under `response.response_headers`.
+
+You can keep only selected response headers with either an exact-name allowlist,
+a regex, or both (`exact OR regex`, case-insensitive):
+
+```json
+{
+  "connect.reporting.include.response.headers": "true",
+  "connect.reporting.response.headers.filter.names": "zuora-request-id,zuora-track-id,zuora-version",
+  "connect.reporting.response.headers.filter.regex": "zuora.*"
+}
+```
 
 For incident analysis, use `envelope` mode and opt in to input/request capture
 with redaction:

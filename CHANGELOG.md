@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-06-10
+
+### Added
+- Response header allowlist filtering with exact names and/or regex via
+  `connect.reporting.response.headers.filter.names` and
+  `connect.reporting.response.headers.filter.regex`.
+- Case-insensitive response header filtering (`exact OR regex`) applied to both
+  Kafka header `response_headers` and envelope field `response.response_headers`.
+- Dedicated tests for exact/regex filtering and invalid regex validation.
+
 ## [1.2.0] — 2026-06-10
 
 ### Added
