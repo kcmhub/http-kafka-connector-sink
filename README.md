@@ -118,7 +118,7 @@ To include HTTP response headers in reports, opt in explicitly (default `false`)
 ```json
 {
   "connect.reporting.include.response.headers": "true",
-  "connect.reporting.response.headers.filter.regex": "zuora.*"
+  "connect.reporting.response.headers.filter.regex": "x-.*"
 }
 ```
 
@@ -132,8 +132,8 @@ a regex, or both (`exact OR regex`, case-insensitive):
 ```json
 {
   "connect.reporting.include.response.headers": "true",
-  "connect.reporting.response.headers.filter.names": "zuora-request-id,zuora-track-id,zuora-version",
-  "connect.reporting.response.headers.filter.regex": "zuora.*"
+  "connect.reporting.response.headers.filter.names": "x-request-id,x-correlation-id,traceparent",
+  "connect.reporting.response.headers.filter.regex": "x-.*"
 }
 ```
 
