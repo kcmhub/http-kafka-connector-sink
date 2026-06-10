@@ -3,11 +3,15 @@ package fr.etech.kafka.connect.http.reporting;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.connect.data.Field;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 public final class ReportRecordBuilder {
@@ -196,6 +200,66 @@ public final class ReportRecordBuilder {
       for (int i = 0; i < boxed.length; i++) raw[i] = boxed[i];
       return new String(raw, StandardCharsets.UTF_8);
     }
+    if (v instanceof Struct) {
+      Object payload = structField((Struct) v, "payload");
+      if (payload != null) return stringify(payload);
+      return toJson(toMap((Struct) v));
+    }
+    if (v instanceof Map<?, ?>) {
+      Map<?, ?> map = (Map<?, ?>) v;
+      Object payload = map.get("payload");
+      if (payload != null) return stringify(payload);
+      return toJson(toJsonCompatible(map));
+    }
+    if (v instanceof List<?>) {
+      return toJson(toJsonCompatible((List<?>) v));
+    }
     return String.valueOf(v);
+  }
+
+  private static Object structField(Struct struct, String field) {
+    try {
+      return struct.schema().field(field) == null ? null : struct.get(field);
+    } catch (Exception ignored) {
+      return null;
+    }
+  }
+
+  private static Map<String, Object> toMap(Struct struct) {
+    Map<String, Object> out = new LinkedHashMap<>();
+    for (Field field : struct.schema().fields()) {
+      out.put(field.name(), toJsonCompatible(struct.get(field)));
+    }
+    return out;
+  }
+
+  private static Object toJsonCompatible(Object value) {
+    if (value instanceof Struct) return toMap((Struct) value);
+    if (value instanceof Map<?, ?>) {
+      Map<String, Object> out = new LinkedHashMap<>();
+      ((Map<?, ?>) value).forEach((key, val) -> out.put(String.valueOf(key), toJsonCompatible(val)));
+      return out;
+    }
+    if (value instanceof List<?>) {
+      List<Object> out = new ArrayList<>();
+      for (Object item : (List<?>) value) out.add(toJsonCompatible(item));
+      return out;
+    }
+    if (value instanceof byte[]) return new String((byte[]) value, StandardCharsets.UTF_8);
+    if (value instanceof Byte[]) {
+      Byte[] boxed = (Byte[]) value;
+      byte[] raw = new byte[boxed.length];
+      for (int i = 0; i < boxed.length; i++) raw[i] = boxed[i];
+      return new String(raw, StandardCharsets.UTF_8);
+    }
+    return value;
+  }
+
+  private static String toJson(Object value) {
+    try {
+      return MAPPER.writeValueAsString(value);
+    } catch (JsonProcessingException e) {
+      return String.valueOf(value);
+    }
   }
 }
