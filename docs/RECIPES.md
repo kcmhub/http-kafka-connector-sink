@@ -201,7 +201,7 @@ headers.
   "connect.reporting.include.input.payload": "true",
   "connect.reporting.include.response.content": "true",
   "connect.reporting.include.response.headers": "true",
-  "connect.reporting.response.headers.filter.regex": "zuora.*"
+  "connect.reporting.response.headers.filter.regex": "x-.*"
 }
 ```
 
