@@ -31,6 +31,7 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
 
   // --- error handling --------------------------------------------------------
   public static final String ERROR_THRESHOLD           = "connect.http.error.threshold";
+  public static final String BEHAVIOR_ON_ERROR         = "connect.http.behavior.on.error";
 
   // --- authentication --------------------------------------------------------
   public static final String AUTH_TYPE                 = "connect.http.authentication.type";
@@ -82,6 +83,17 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
   public enum AuthType { NONE, BASIC, OAUTH2 }
   public enum RetryMode { NONE, EXPONENTIAL }
   public enum ReportingValueMode { REQUEST_BODY, RESPONSE_ONLY, ENVELOPE }
+  /**
+   * What to do with a record that fails terminally (non-retryable status, or retries
+   * exhausted) <em>after</em> the response has been published to the error reporting
+   * topic (when configured).
+   *
+   * <p>Note: Kafka Connect's {@code errors.tolerance=all} and
+   * {@code errors.deadletterqueue.topic.name} only apply to converter and SMT failures
+   * — they do <b>not</b> catch exceptions thrown from {@link
+   * org.apache.kafka.connect.sink.SinkTask#put}. This setting fills that gap.</p>
+   */
+  public enum BehaviorOnError { FAIL, REPORT_AND_CONTINUE }
 
   public EtechHttpSinkConfig(Map<String, String> originals) {
     super(CONFIG_DEF, originals);
@@ -116,6 +128,17 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
 
       .define(ERROR_THRESHOLD, ConfigDef.Type.INT, 1000,
               ConfigDef.Importance.LOW, "Failed sends before task fails.")
+      .define(BEHAVIOR_ON_ERROR, ConfigDef.Type.STRING, "report_and_continue",
+              ConfigDef.ValidString.in("fail", "report_and_continue"),
+              ConfigDef.Importance.MEDIUM,
+              "Action when a record fails terminally (non-retryable status / retries "
+              + "exhausted) AFTER the response has been published to the error topic. "
+              + "'report_and_continue' (default): swallow the exception and keep "
+              + "processing — production-friendly, requires "
+              + "connect.reporting.error.config.enabled=true to avoid silent loss. "
+              + "'fail': throw, task FAILS — strict semantics. "
+              + "Note: Kafka Connect's errors.tolerance=all does NOT cover exceptions "
+              + "thrown from SinkTask.put(), only converter/SMT failures.")
 
       .define(AUTH_TYPE, ConfigDef.Type.STRING, "none",
               ConfigDef.ValidString.in("none", "basic", "oauth2"),
@@ -219,6 +242,9 @@ public final class EtechHttpSinkConfig extends AbstractConfig {
   public long   initialDelayMs()       { return getLong(RETRIES_INITIAL_DELAY_MS); }
   public long   maxDelayMs()           { return getLong(RETRIES_MAX_DELAY_MS); }
   public int    errorThreshold()       { return getInt(ERROR_THRESHOLD); }
+  public BehaviorOnError behaviorOnError() {
+    return BehaviorOnError.valueOf(getString(BEHAVIOR_ON_ERROR).toUpperCase());
+  }
 
   public AuthType authType()           { return AuthType.valueOf(getString(AUTH_TYPE).toUpperCase()); }
   public String basicUser()            { return getString(AUTH_BASIC_USER); }

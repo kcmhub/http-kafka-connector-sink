@@ -51,6 +51,21 @@ public final class EtechHttpSinkTask extends SinkTask {
   private final AtomicLong errorCount = new AtomicLong();
   private String connectorName;
 
+  /** No-arg constructor used by the Connect runtime. */
+  public EtechHttpSinkTask() { /* default */ }
+
+  /**
+   * Package-private constructor for unit tests — bypasses {@link #start} so tests
+   * can exercise terminal-failure handling without spinning up an HTTP client.
+   */
+  EtechHttpSinkTask(EtechHttpSinkConfig cfg,
+                    KafkaResponseReporter errorReporter,
+                    String connectorName) {
+    this.cfg = cfg;
+    this.errorReporter = errorReporter;
+    this.connectorName = connectorName;
+  }
+
   @Override public String version() { return EtechHttpSinkConnector.connectorVersion(); }
 
   @Override public void start(Map<String, String> props) {
@@ -160,16 +175,45 @@ public final class EtechHttpSinkTask extends SinkTask {
     return http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
   }
 
-  private void handleTerminalFailure(SinkRecord record, Exception e) {
+  void handleTerminalFailure(SinkRecord record, Exception e) {
     long count = errorCount.incrementAndGet();
     LOG.error("Terminal failure on record {}-{}@{}: {}",
         record.topic(), record.kafkaPartition(), record.kafkaOffset(), e.getMessage());
+
+    // Circuit breaker — too many cumulative failures means a systemic problem
+    // (Zuora down, bad credentials, mass-poisoned topic, etc.). Fail loud so
+    // operators get an alert no matter which behavior.on.error is configured.
     if (count > cfg.errorThreshold()) {
       throw new ConnectException("Error threshold (" + cfg.errorThreshold()
           + ") exceeded for " + connectorName, e);
     }
-    // Below threshold: let the Connect runtime's tolerant error handling kick in
-    // (errors.tolerance=all → DLQ via errors.deadletterqueue.topic.name).
+
+    // Below threshold — apply the configured behavior.
+    //
+    // Why this exists: Kafka Connect's `errors.tolerance=all` +
+    // `errors.deadletterqueue.topic.name` ONLY catch failures from converters
+    // and SMTs. Exceptions thrown from SinkTask.put() bypass that mechanism
+    // and crash the task. This setting is the HTTP-sink equivalent of
+    // `errors.tolerance=all` for put()-time failures.
+    if (cfg.behaviorOnError() == EtechHttpSinkConfig.BehaviorOnError.REPORT_AND_CONTINUE) {
+      if (errorReporter == null) {
+        // The user opted into tolerance but didn't enable error reporting.
+        // The record is being dropped — make it loud so it doesn't go unnoticed.
+        LOG.warn("behavior.on.error=report_and_continue but no error reporter is "
+            + "configured — record {}-{}@{} is being dropped without trace. "
+            + "Configure connect.reporting.error.config.enabled=true and "
+            + "connect.reporting.error.config.topic to capture failures.",
+            record.topic(), record.kafkaPartition(), record.kafkaOffset());
+      } else {
+        LOG.warn("Record {}-{}@{} reported to error topic — continuing "
+            + "(errorCount={}/{})",
+            record.topic(), record.kafkaPartition(), record.kafkaOffset(),
+            count, cfg.errorThreshold());
+      }
+      return;
+    }
+
+    // FAIL mode — preserve historical strict behavior.
     if (e instanceof ConnectException) throw (ConnectException) e;
     throw new ConnectException(e);
   }

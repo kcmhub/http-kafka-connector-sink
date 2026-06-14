@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-06-14
+
+### Fixed
+- **Task no longer fails on a single non-retryable HTTP response.** Previously,
+  after the response was published to the error reporting topic, the task
+  re-threw `ConnectException` from `put()`, which crashed the worker and
+  blocked all subsequent records (Kafka Connect's `errors.tolerance=all`
+  does **not** cover exceptions from `SinkTask.put()` — only converter and
+  SMT failures). The new default is to swallow the exception once the
+  record has been reported, keeping the task healthy.
+
+### Added
+- New configuration `connect.http.behavior.on.error` controlling the
+  behavior of terminal record failures (non-retryable status codes or
+  exhausted retries):
+  - `report_and_continue` (**new default**): publish the failure to the
+    error reporting topic and keep processing. Recommended for production
+    when `connect.reporting.error.config.enabled=true`.
+  - `fail`: re-throw and let the task fail. Preserves the previous
+    behavior; use this for strict pipelines where any HTTP failure must
+    halt processing.
+- `connect.http.error.threshold` is still honored as a circuit breaker
+  in both modes — the task fails loud once the cumulative failure count
+  exceeds the threshold, regardless of `behavior.on.error`.
+
+### Changed
+- **Default behavior change** (`behavior.on.error` defaults to
+  `report_and_continue`): operators relying on the previous fail-fast
+  semantics must explicitly set `connect.http.behavior.on.error=fail`.
+
 ## [1.3.0] — 2026-06-10
 
 ### Added
