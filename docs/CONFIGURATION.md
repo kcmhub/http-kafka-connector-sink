@@ -33,11 +33,20 @@ Backoff formula: `min(initialDelay * 2^attempt, maxDelay)`.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `connect.http.error.threshold` | int | `1000` | Failed sends above which the task **fails** (Connect will restart it per its own policy). |
-| `errors.tolerance` | string | inherited | Standard Connect key. Set to `all` to send records to a DLQ instead of failing. |
-| `errors.deadletterqueue.topic.name` | string | inherited | Standard Connect DLQ topic. |
+| `connect.http.error.threshold` | int | `1000` | Cumulative number of failed sends above which the task **fails loud** (circuit breaker). Honored in both `behavior.on.error` modes. |
+| `connect.http.behavior.on.error` | string | `report_and_continue` | What to do with a record that fails terminally (non-retryable status / retries exhausted) **after** the response has been published to the error topic. `report_and_continue`: swallow the exception and keep processing — production-friendly, requires `connect.reporting.error.config.enabled=true` to avoid silent loss. `fail`: re-throw, task FAILS — strict semantics. |
+| `errors.tolerance` | string | inherited | Standard Connect key. **Important:** this only covers converter and SMT failures — it does **not** catch exceptions thrown from `SinkTask.put()`. For HTTP-call failures use `connect.http.behavior.on.error` above. |
+| `errors.deadletterqueue.topic.name` | string | inherited | Standard Connect DLQ topic. Receives converter/SMT failures only (same caveat as `errors.tolerance`). |
 | `errors.deadletterqueue.topic.replication.factor` | int | inherited | Replication factor of an auto-created DLQ topic. |
 | `errors.deadletterqueue.context.headers.enable` | bool | inherited | Adds `__connect.errors.*` headers describing the cause. |
+
+> **Recommended production setup.** Enable error reporting
+> (`connect.reporting.error.config.enabled=true`,
+> `connect.reporting.error.config.topic=...`) and keep the default
+> `behavior.on.error=report_and_continue`. Failed records will be visible
+> on the error topic for downstream handling while the task keeps draining
+> the source topic. Use `connect.http.error.threshold` to trip the circuit
+> breaker if a systemic outage causes the failure rate to spike.
 
 ## Authentication
 
